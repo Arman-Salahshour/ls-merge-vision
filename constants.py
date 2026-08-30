@@ -21,3 +21,6 @@ EXCLUDE_EXACT = {"conv1.weight"}
 
 '''option-b projection shortcuts, only present in some resnet variants'''
 EXCLUDE_SUBSTRINGS = ("downsample",)
+
+'''include the classifier head, needed when experts specialize by class'''
+INCLUDE_LINEAR = True

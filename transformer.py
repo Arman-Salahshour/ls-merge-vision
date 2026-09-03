@@ -85,3 +85,20 @@ class MLP(nn.Module):
 
     def forward(self, x):
         return self.drop(self.fc2(F.gelu(self.fc1(x))))
+    
+
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, dim, n_heads=4, mlp_ratio=4, rope_base=10000.0, dropout=0.0):
+        super().__init__()
+        '''pre norm, norm before each sublayer and residual added after'''
+        self.norm1 = nn.LayerNorm(dim)
+        self.attn = RoPESelfAttention(dim, n_heads, rope_base, dropout)
+        self.norm2 = nn.LayerNorm(dim)
+        self.mlp = MLP(dim, mlp_ratio, dropout)
+
+    def forward(self, x):
+        x = x + self.attn(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
+        return x

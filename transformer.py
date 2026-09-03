@@ -102,3 +102,21 @@ class TransformerBlock(nn.Module):
         x = x + self.attn(self.norm1(x))
         x = x + self.mlp(self.norm2(x))
         return x
+
+
+
+
+class TransformerStack(nn.Module):
+    def __init__(self, dim=256, depth=4, n_heads=4, mlp_ratio=4, rope_base=10000.0, dropout=0.0):
+        super().__init__()
+        self.blocks = nn.ModuleList([
+            TransformerBlock(dim, n_heads, mlp_ratio, rope_base, dropout)
+            for _ in range(depth)
+        ])
+        '''final norm so the stack output is well scaled for the next projection'''
+        self.norm = nn.LayerNorm(dim)
+
+    def forward(self, x):
+        for blk in self.blocks:
+            x = blk(x)
+        return self.norm(x)

@@ -71,3 +71,17 @@ class RoPESelfAttention(nn.Module):
             q, k, v, dropout_p=self.dropout if self.training else 0.0, is_causal=False)
         out = out.transpose(1, 2).reshape(B, T, C)
         return self.proj(out)
+
+
+
+
+class MLP(nn.Module):
+    def __init__(self, dim, ratio=4, dropout=0.0):
+        super().__init__()
+        hidden = dim * ratio
+        self.fc1 = nn.Linear(dim, hidden)
+        self.fc2 = nn.Linear(hidden, dim)
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x):
+        return self.drop(self.fc2(F.gelu(self.fc1(x))))

@@ -70,3 +70,56 @@ class ResZoo(Dataset):
             'model_idx': torch.tensor(m, dtype=torch.long),
             'row_start': torch.tensor(start, dtype=torch.long),
         }
+
+
+
+
+def str_to_model_attr_ids(name):
+    parts = name.split('_')
+    if len(parts) != 3:
+        return None
+    model_id, seed, epoch = parts
+    model_id = model_id.replace('split', '')
+    seed = seed.replace('seed', '')
+    epoch = epoch.replace('ep', '')
+    return int(model_id), int(seed), int(epoch)
+
+
+def summon_res_zoo(zoo_dir = './zoo_chunks'):
+    train_model = list(range(3))
+    train_epoch = list(range(4, 37, 4))
+    validation_model = [3,]
+    merget_set_epoch = [40]
+    test_model = [4,]
+    chunk_list = os.listdir(zoo_dir)
+
+    training_set = []
+    validation_set = []
+    test_set = []
+    merge_set = []
+
+    for chunk in chunk_list:
+        parsed = str_to_model_attr_ids(chunk)
+        if parsed is None:
+            '''skip anything not matching splitN_seedN_epNNN'''
+            continue
+        model_id, seed, epoch = parsed
+
+        if model_id in train_model and epoch in train_epoch:
+            training_set.append(chunk)
+        elif model_id in validation_model and epoch in train_epoch:
+            validation_set.append(chunk)
+        elif model_id in test_model:
+            test_set.append(chunk)
+
+
+        if model_id in (train_model + validation_model + test_model) and epoch in merget_set_epoch:
+            merge_set.append(chunk)
+
+    '''training and validation must never share a model, and merge subjects must never appear in training - these three assertions are what catch a silent contamination bug before it reaches the vae'''
+    assert set(training_set).isdisjoint(validation_set)
+    assert set(training_set).isdisjoint(merge_set)
+    assert set(validation_set).isdisjoint(merge_set)
+
+    return training_set, validation_set, test_set, merge_set
+

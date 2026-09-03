@@ -30,3 +30,44 @@ def apply_rope(x, cos, sin):
     r2 = x1 * sin + x2 * cos
     out = torch.stack((r1, r2), dim=-1).flatten(-2)
     return out
+
+
+
+
+class RoPESelfAttention(nn.Module):
+    def __init__(self, dim, n_heads=4, rope_base=10000.0, dropout=0.0):
+        super().__init__()
+        assert dim % n_heads == 0, 'dim must divide evenly by n_heads'
+        self.n_heads = n_heads
+        self.head_dim = dim // n_heads
+        self.rope_base = rope_base
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.proj = nn.Linear(dim, dim, bias=False)
+        self.dropout = dropout
+        '''cache is rebuilt if sequence length or device changes'''
+        self._cache_len = -1
+        self.register_buffer('cos', torch.zeros(0), persistent=False)
+        self.register_buffer('sin', torch.zeros(0), persistent=False)
+
+    def _rope(self, T, device, dtype):
+        if self._cache_len != T or self.cos.device != device or self.cos.dtype != dtype:
+            cos, sin = build_rope_cache(T, self.head_dim, self.rope_base, device, dtype)
+            self.cos, self.sin = cos, sin
+            self._cache_len = T
+        return self.cos, self.sin
+
+    def forward(self, x):
+        B, T, C = x.shape
+        qkv = self.qkv(x).view(B, T, 3, self.n_heads, self.head_dim)
+        q, k, v = qkv.permute(2, 0, 3, 1, 4)
+
+        cos, sin = self._rope(T, x.device, x.dtype)
+        '''rope goes on q and k only, never on v'''
+        q = apply_rope(q, cos, sin)
+        k = apply_rope(k, cos, sin)
+
+        '''no causal mask, weight chunks are not autoregressive'''
+        out = F.scaled_dot_product_attention(
+            q, k, v, dropout_p=self.dropout if self.training else 0.0, is_causal=False)
+        out = out.transpose(1, 2).reshape(B, T, C)
+        return self.proj(out)

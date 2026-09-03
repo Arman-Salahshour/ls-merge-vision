@@ -15,3 +15,18 @@ def build_rope_cache(seq_len, head_dim, base=10000.0, device=None, dtype=torch.f
     '''outer product gives angle per (position, freq pair)'''
     freqs = torch.outer(pos, inv_freq)
     return freqs.cos().to(dtype), freqs.sin().to(dtype)
+
+
+
+def apply_rope(x, cos, sin):
+    '''x is [B, heads, T, head_dim], rotate each adjacent pair of dims by the position angle'''
+    B, H, T, D = x.shape
+    cos = cos[:T].view(1, 1, T, D // 2)
+    sin = sin[:T].view(1, 1, T, D // 2)
+    x1 = x[..., 0::2]
+    x2 = x[..., 1::2]
+    '''standard 2d rotation applied pairwise'''
+    r1 = x1 * cos - x2 * sin
+    r2 = x1 * sin + x2 * cos
+    out = torch.stack((r1, r2), dim=-1).flatten(-2)
+    return out

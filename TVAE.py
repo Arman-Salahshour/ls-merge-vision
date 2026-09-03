@@ -58,3 +58,14 @@ class TVAE(nn.Module):
         return xhat, mu, logvar
 
 
+def vae_loss(xhat, x, mu, logvar, mask=None, beta=0.0):
+    '''masked mse, normalize by the count of REAL values not the total'''
+    if mask is None:
+        recon = F.mse_loss(xhat, x)
+    else:
+        m = mask.float()
+        recon = ((xhat - x) ** 2 * m).sum() / m.sum().clamp(min=1.0)
+
+    '''kl per latent element, averaged over the batch, beta=0 disables it for stage B'''
+    kl = -0.5 * torch.mean(torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1))
+    return recon + beta * kl, recon.detach(), kl.detach()

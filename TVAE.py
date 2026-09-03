@@ -20,6 +20,12 @@ class TVAE(nn.Module):
         self.fc_mu = nn.Linear(model_dim, latent_dim)
         self.fc_logvar = nn.Linear(model_dim, latent_dim)
 
+        '''Decoder block'''
+        self.latent_projection = nn.Linear(latent_dim, model_dim)
+        self.dec_depth_embedding = nn.Embedding(n_layers_total, model_dim)
+        self.dec_stage_embedding = nn.Embedding(n_stages, model_dim)
+        self.decoder = TransformerStack(dim=model_dim, depth=depth, n_heads=n_heads)
+        self.out_projection = nn.Linear(model_dim, input_dim)
 
     def encode(self, x, depth, stage):
         x = self.chunk_projection(x)
@@ -30,5 +36,25 @@ class TVAE(nn.Module):
         x = self.encoder(x)
         return self.fc_mu(x), self.fc_logvar(x)
 
+    def reparameterize(self, mu, logvar):
+        '''sample at train time, use the mean at eval time so reconstruction is deterministic'''
+        if not self.training:
+            return mu
+        std = torch.exp(0.5 * logvar)
+        return mu + std * torch.randn_like(std)
+
+    def decode(self, z, depth, stage):
+        x = self.latent_projection(z)
+        d = self.dec_depth_embedding(depth)
+        s = self.dec_stage_embedding(stage)
+        x = x + d[:, None, :] + s[:, None, :]
+        x = self.decoder(x)
+        return self.out_projection(x)
+
+    def forward(self, x, depth, stage):
+        mu, logvar = self.encode(x, depth, stage)
+        z = self.reparameterize(mu, logvar)
+        xhat = self.decode(z, depth, stage)
+        return xhat, mu, logvar
 
 

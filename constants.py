@@ -24,3 +24,6 @@ EXCLUDE_SUBSTRINGS = ("downsample",)
 
 '''include the classifier head, needed when experts specialize by class'''
 INCLUDE_LINEAR = True
+
+
+IMG_PATH = "/fp/homes01/u01/ec-armans/DLAI/imgs"

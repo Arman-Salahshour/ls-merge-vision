@@ -1,12 +1,14 @@
-import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-from torch.utils.data import DataLoader
-from constants import device
-from dataset import ResZoo
 import warnings
+import numpy as np
+from dataset import ResZoo
+from constants import device
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+from sklearn.decomposition import PCA
+from matplotlib.patches import Ellipse
+from torch.utils.data import DataLoader
+
 warnings.filterwarnings("ignore")
 
 EXPERT_COLORS = {0: '#4C72B0', 1: '#DD8452', 2: '#55A868', 3: '#C44E52', 4: '#8172B3'}
@@ -155,4 +157,122 @@ def backbone_distance(lat, depths, splits, depth_list, verbose=True):
         if verbose:
             print(f'depth {d:>2}: backbone to experts ' +
                   '  '.join(f'e{sp}={v:7.3f}' for sp, v in zip(experts, dists)))
+    return rows
+
+
+
+
+
+@torch.no_grad()
+def collect_latents_sampled(model, dataset, n_samples=8, batch_size=64, seed=0):
+    '''draw from the posterior instead of taking mu, so the plot shows the
+    spread the encoder assigns rather than a single point per sequence'''
+    model.eval()
+    torch.manual_seed(seed)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    lat, depths, splits_idx = [], [], []
+    for batch in loader:
+        mu, logvar = model.encode(
+            batch['chunks'].to(device),
+            batch['depth'].to(device),
+            batch['stage'].to(device))
+        std = torch.exp(0.5 * logvar)
+        for _ in range(n_samples):
+            z = mu + std * torch.randn_like(std)
+            lat.append(z.cpu().numpy())
+            depths.append(batch['depth'].numpy())
+            splits_idx.append(batch['model_idx'].numpy())
+
+    return (np.concatenate(lat), np.concatenate(depths), np.concatenate(splits_idx))
+
+
+def draw_ellipse(ax, pts, color, nsig=2.0):
+    '''2 sigma ellipse from the empirical covariance of the projected samples'''
+    c = pts.mean(0)
+    cov = np.cov(pts.T)
+    vals, vecs = np.linalg.eigh(cov)
+    order = vals.argsort()[::-1]
+    vals, vecs = vals[order], vecs[:, order]
+    ang = np.degrees(np.arctan2(*vecs[:, 0][::-1]))
+    w, h = 2 * nsig * np.sqrt(np.maximum(vals, 1e-12))
+    ax.add_patch(Ellipse(c, w, h, angle=ang, facecolor=color,
+                         alpha=0.15, edgecolor=color, lw=1.5))
+
+
+def plot_overlap_grid(lat, depths, splits, depth_list, n_cols=3, tag='',
+                      seed=0, perplexity=20, savepath=None):
+    '''same grid as plot_depth_grid but each expert gets a 2 sigma ellipse,
+    so overlap is visible rather than inferred from point positions'''
+    n_rows = int(np.ceil(len(depth_list) / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols,
+                             figsize=(4.2 * n_cols, 3.6 * n_rows), squeeze=False)
+
+    for k, d in enumerate(depth_list):
+        ax = axes[k // n_cols][k % n_cols]
+        sel = np.where(depths == d)[0]
+        if len(sel) < 6:
+            ax.set_title(f'depth {d}: too few points')
+            ax.axis('off')
+            continue
+
+        emb = reduce_2d(lat[sel], seed, perplexity)
+        lbl = splits[sel]
+        for sp in sorted(set(lbl) - {BACKBONE_LABEL}):
+            m = lbl == sp
+            ax.scatter(emb[m, 0], emb[m, 1], c=EXPERT_COLORS[sp], s=4, alpha=0.25)
+            draw_ellipse(ax, emb[m], EXPERT_COLORS[sp])
+            ax.scatter(*emb[m].mean(0), c=EXPERT_COLORS[sp], s=70, marker='o',
+                       edgecolors='k', lw=1, zorder=6, label=f'expert {sp}')
+
+        ax.set_title(f'depth {d}', fontsize=10)
+        ax.set_xticks([]); ax.set_yticks([])
+
+    for k in range(len(depth_list), n_rows * n_cols):
+        axes[k // n_cols][k % n_cols].axis('off')
+
+    h, l = axes[0][0].get_legend_handles_labels()
+    fig.legend(h, l, loc='lower center', ncol=len(l), fontsize=9, frameon=False)
+    fig.suptitle(f'Posterior overlap by depth{tag}', fontsize=12)
+    fig.tight_layout(rect=[0, 0.05, 1, 0.97])
+    if savepath:
+        fig.savefig(savepath, dpi=150)
+    plt.show()
+    return fig
+
+
+@torch.no_grad()
+def posterior_overlap(model, dataset, depth_list, batch_size=64, verbose=True):
+    '''between expert distance measured in units of the encoder's own uncertainty.
+    below 1 means the distributions overlap within their own spread'''
+    model.eval()
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    MU, LV, D, M = [], [], [], []
+    for batch in loader:
+        mu, logvar = model.encode(batch['chunks'].to(device),
+                                  batch['depth'].to(device),
+                                  batch['stage'].to(device))
+        MU.append(mu.cpu().numpy()); LV.append(logvar.cpu().numpy())
+        D.append(batch['depth'].numpy()); M.append(batch['model_idx'].numpy())
+    MU = np.concatenate(MU); LV = np.concatenate(LV)
+    D = np.concatenate(D); M = np.concatenate(M)
+    spl = np.array([int(dataset.meta_list[m].split_id) for m in M])
+
+    rows = []
+    for d in depth_list:
+        sel = np.where(D == d)[0]
+        if len(sel) < 2:
+            continue
+        experts = sorted(set(spl[sel]))
+        means = {sp: MU[sel][spl[sel] == sp].reshape((spl[sel] == sp).sum(), -1).mean(0)
+                 for sp in experts}
+        '''total posterior spread over the flattened latent'''
+        sigma = np.sqrt((np.exp(LV[sel]) ** 1).sum(axis=(1, 2))).mean()
+        ds = [np.linalg.norm(means[a] - means[b])
+              for i, a in enumerate(experts) for b in experts[i + 1:]]
+        ratio = np.mean(ds) / sigma
+        rows.append((d, np.mean(ds), sigma, ratio))
+        if verbose:
+            print(f'depth {d:>2}: between-expert {np.mean(ds):8.3f}  '
+                  f'posterior sigma {sigma:8.3f}  ratio {ratio:.3f}')
     return rows

@@ -27,3 +27,5 @@ INCLUDE_LINEAR = True
 
 
 IMG_PATH = "/fp/homes01/u01/ec-armans/DLAI/imgs"
+
+ZOO_PATH = './zoo_chunks'

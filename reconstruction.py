@@ -107,3 +107,20 @@ def evaluate_reconstruction(sd_hat, sd_orig, expert_id, recal_loader, test_loade
     print(f'\n  index 1249 of layer1.2.conv2: original {ref:.4f}  reconstructed {v:.4f}')
 
     return all_h - all_r
+
+
+
+def interp_to_state_dict(out, dataset, target_state_dict):
+    '''same reassembly as reconstruct_model, just starting from a decoded tensor'''
+    meta = dataset.meta_list[0]
+    chunks = out.reshape(-1, meta.chunk_size).numpy()
+    assert chunks.shape[0] == meta.n_chunks_total
+    return C.reconstruct_state_dict(chunks, meta, target_state_dict)
+
+
+def eval_state_dict(sd, expert_id, recal_loader, test_loader):
+    '''load, recalibrate batchnorm, evaluate'''
+    m = resnet20(num_classes=100).to(device)
+    m.load_state_dict(sd, strict=True)
+    recalibrate_bn(m, recal_loader)
+    return evaluate_grouped(m, test_loader, expert_id)

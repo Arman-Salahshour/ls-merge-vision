@@ -1,0 +1,7 @@
+/res_data
+/res_models
+/zoo_reference
+/out_backbone
+/__pycache__
+backbone_stats.json
+/zoo_chunks

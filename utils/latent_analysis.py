@@ -1,8 +1,8 @@
 import torch
 import warnings
 import numpy as np
-from dataset import ResZoo
-from constants import device
+from .dataset import ResZoo
+from .constants import device
 import matplotlib.pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA

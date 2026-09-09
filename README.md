@@ -4,7 +4,7 @@
 
 Merging is the cheapest way to keep the investment in a trained network: fold several models
 into one by arithmetic on their parameters, with no further training. The catch has always
-been that the parents have to be close relatives. LS-Merge claims more — that if weights are
+been that the parents have to be close relatives. LS-Merge claims more: that if weights are
 first encoded into a learned latent space, the operation stops caring what shape the models
 are.
 
@@ -16,7 +16,7 @@ the parents stop being relatives.
 Four things came out of it.
 
 1. **Inside a shared basin it works, and works well.** Five specialists scoring about 21%
-   apiece fold into one model at **67.24%**, 98% of the backbone they were forked from,
+   pieces fold into one model at **67.24%**, 98% of the backbone they were forked from,
    without a gradient step.
 2. **It ties weight averaging rather than beating it.** Averaging reaches 67.21% on the same
    five models. The latent space matches it; it does not improve on it.
@@ -51,7 +51,7 @@ Everything below is a number we produced by running the code in this repository.
 | `phase_two_generate_and_analyze_dataset.ipynb` | chunks every checkpoint, then the weight-statistics study |
 | `phase_three_train_and_evaluate_weight_vae.ipynb` | trains the autoencoder, chooses β, reconstruction and PCA controls, retrains on three lineages |
 | `phase_four_merge_experts_in_latent_space.ipynb` | the merges: pairs, the five-way barycentre, and the independent-initialisation test |
-| `figs/` | the figures used in this README |
+| `imgs/` | the figures used in this README |
 
 The four notebooks run in order. Each one writes artefacts the next one reads, and nothing
 in phase three or four regenerates a checkpoint.
@@ -87,7 +87,7 @@ Latent dimension is 144, so the compression ratio is r = 1: no bottleneck at all
 reconstruction still breaks a ResNet at r = 1, the fault is in the plumbing rather than in
 compression, and we wanted that question settled before anything else.
 
-The loss is a masked MSE — padding never enters it — plus βKL.
+The loss is a masked MSE, padding never enters it, plus βKL.
 
 ### Two stages, and choosing β
 
@@ -110,8 +110,8 @@ left to merge.
 | 1e-5 | 0.00189 | 1.936 | 1.941 |
 | 1e-4 | 0.00250 | 8.485 | 0.493 |
 
-β = 3e-6 ties for the best validation reconstruction, its posterior lands at σ ≈ 1 — which is
-essentially the prior — and the experts stay separable at the head. Past 9e-6 the overlap
+β = 3e-6 ties for the best validation reconstruction, its posterior lands at σ ≈ 1, which is
+essentially the prior, and the experts stay separable at the head. Past 9e-6 the overlap
 drops below 1 and they stop being distinguishable.
 
 One detail worth stating because it contradicts the usual story: at β = 0 the posterior
@@ -119,7 +119,7 @@ collapses to σ = 0.15, *tighter* than the prior. KL then widens it rather than 
 That is the opposite of the posterior-collapse regime the paper discusses, and it is why β
 here is six orders of magnitude smaller than a typical image VAE.
 
-![Posterior overlap by depth at the chosen β](figs/overlap_beta3e-06.png)
+![Posterior overlap by depth at the chosen β](imgs/overlap_beta3e-06.png)
 
 *Experts separate cleanly at shallow depth and are swallowed by their own posteriors by depth
 15. That is why the overlap statistic is read at the classifier rather than averaged over
@@ -148,7 +148,7 @@ BatchNorm recalibration, and it is the error bar on every merge number below.
 The paper motivates its encoder with heavy-tailed weight distributions. On ResNet-20 that is
 true, but only if you measure it correctly, and there are two ways to get it wrong.
 
-![Excess kurtosis measured three ways](figs/kurtosis_three_ways.png)
+![Excess kurtosis measured three ways](imgs/kurtosis_three_ways.png)
 
 | measurement | mean excess kurtosis |
 |---|---|
@@ -156,15 +156,15 @@ true, but only if you measure it correctly, and there are two ways to get it wro
 | raw, pooled per layer | +2.393 |
 | raw, per filter | +1.590 |
 
-Measured on the companded values — which is how the released pipeline stores weights — the
+Measured on the companded values, which is how the released pipeline stores weights, the
 layers are *platykurtic* at almost every depth, and the motivation appears to evaporate.
 Inverting the transform brings the tails back. Pooling across filters of different scale then
 inflates the statistic by a further +0.803 on average, because a layer of Gaussian filters
 with unequal norms has positive pooled kurtosis and zero per-filter kurtosis. Only the
 per-filter number is evidence of real tails. It is still clearly positive, so the design
-argument survives — it just needs to be measured before storage and inside a filter.
+argument survives, it just needs to be measured before storage and inside a filter.
 
-![Heaviest- and lightest-tailed layers against a Gaussian](figs/histogram_overlay.png)
+![Heaviest- and lightest-tailed layers against a Gaussian](imgs/histogram_overlay.png)
 
 The isolated mass near z = −11 on the left is a single weight in `layer1.2.conv2`. It is
 stable to 2% across all 27 expert checkpoints, so it is structure rather than noise, and we
@@ -186,10 +186,10 @@ The uniform barycentre of all five reaches **67.24%**, 98% of the backbone, from
 each know a fifth of the label space. Every group survives, between 65.6 and 68.5, so this is
 a real combination and not a collapse onto one parent.
 
-![Merging two experts from one backbone](figs/merge_pair.png)
+![Merging two experts from one backbone](imgs/merge_pair.png)
 
-And here is the number that keeps us honest. Weight averaging — the baseline all of this is
-supposed to improve on — reaches **67.21%**. A tie, well inside the 0.20-point error bar. For
+And here is the number that keeps us honest. Weight averaging, the baseline all of this is
+supposed to improve on, reaches **67.21%**. A tie, well inside the 0.20-point error bar. For
 two experts the latent margin looks wider, 48.72 against 46.48, but 3.10 of those points are
 already present at λ = 0, before anything is merged: passing a model through the autoencoder
 blurs it slightly, and a blurred specialist scores a little better on classes it was never
@@ -203,12 +203,12 @@ question is what happens when we leave it.
 
 | method | r | own | all | mean rel. err. | tail weight |
 |---|---|---|---|---|---|
-| original | — | 82.50 | 22.66 | — | — |
+| original |, | 82.50 | 22.66 |, |, |
 | VAE, v1 | 1.0 | 82.00 | 25.24 | 0.0809 | 11.6% off |
 | VAE, v2 | 1.0 | 82.35 | 22.73 | 0.0221 | 1.3% off |
-| PCA | 1.6 | 63.53 | 13.35 | — | — |
-| PCA | 2.0 | 48.17 | 9.73 | — | — |
-| PCA | 4.0 | 12.90 | 2.58 | — | — |
+| PCA | 1.6 | 63.53 | 13.35 |, |, |
+| PCA | 2.0 | 48.17 | 9.73 |, |, |
+| PCA | 4.0 | 12.90 | 2.58 |, |, |
 
 A held-out expert gives up **0.15 points** of own-class accuracy at 0.022 relative error. A
 linear baseline at matched compression gives up 19, and by r = 4 there is nothing working
@@ -218,16 +218,16 @@ behaviour, and it does so while compressing (v2's validation KL is 1155 against 
 identical batches).
 
 Note the `all` column for v1: 25.24 against an original of 22.66. That +3.35 is the smoothing
-drift again, and it is why v2 — which reconstructs faithfully enough that the inflation drops
-to +0.07 — is the encoder we trust for anything quantitative.
+drift again, and it is why v2, which reconstructs faithfully enough that the inflation drops
+to +0.07, is the encoder we trust for anything quantitative.
 
 ### The encoder had never met a stranger
 
 Leaving the basin turned out to be harder than expected, for a reason that had nothing to do
 with merging.
 
-Handed a ResNet-20 trained from an independent seed — same architecture, same data
-distribution, different initialisation — the first encoder simply failed. Relative error rose
+Handed a ResNet-20 trained from an independent seed, same architecture, same data
+distribution, different initialisation, the first encoder simply failed. Relative error rose
 from 0.081 to 0.40, the 11σ weight came back 11.6% wrong, and the decoded network lost 26
 accuracy points. Any permutation experiment run on top of that is unreadable: you cannot tell
 whether merging failed because of misalignment or because the encoder never learned what an
@@ -239,14 +239,14 @@ unrelated network looks like.
 | v2 (3 lineages) | 0.022 | 0.110 / 0.091 | 1.3% | −3.6 / −2.5 |
 
 The remedy was data, not architecture. We added 20 checkpoints from two ResNet-20 runs
-trained from scratch on disjoint label halves — never merge subjects, so nothing leaks — and
+trained from scratch on disjoint label halves, never merge subjects, so nothing leaks, and
 retrained the same encoder unchanged. Out-of-lineage error fell fourfold, the tail returned to
 its in-distribution accuracy, and the penalty dropped from 26 points to 3.6. The encoder even
 improved *in* distribution, from 0.081 to 0.022.
 
 This is a blind spot in the paper's design rather than an oversight on its part. Its
 generalisation study moves family and architecture together, from Gemma to LLaMA, but never
-the initialisation alone at fixed architecture — and that is the variable which decides
+the initialisation alone at fixed architecture, and that is the variable which decides
 whether two networks can merge at all. Among pretrained LLMs that experiment is barely
 available. On ResNets it costs an afternoon.
 
@@ -259,7 +259,7 @@ ratio of 1 means the encoder reproduced the structure the weights already had.
 
 | encoder | latent dim. | β | geometry ratio |
 |---|---|---|---|
-| raw weights (reference) | — | — | 1.000 |
+| raw weights (reference) |, |, | 1.000 |
 | v1 | 144 | 3e-6 | 0.832 |
 | v2 | 144 | 3e-6 | 0.712 |
 | expanded | 720 | 3e-6 | 0.883 |
@@ -267,15 +267,15 @@ ratio of 1 means the encoder reproduced the structure the weights already had.
 It never exceeds 1. Better encoders contract more, which is exactly what a reconstruction
 objective rewards. The pictures say the same thing more bluntly:
 
-![t-SNE of raw chunks by depth](figs/raw_grid.png)
-![t-SNE of v2 latents by depth](figs/latent_grid_v2.png)
+![t-SNE of raw chunks by depth](imgs/raw_grid.png)
+![t-SNE of v2 latents by depth](imgs/latent_grid_v2.png)
 
 Raw chunks on top, v2 latents below. They are near-identical.
 
 Extend the same control to the from-scratch lineages and the point sharpens:
 
-![Raw chunks, all lineages](figs/raw_grid_all_lineages.png)
-![v2 latents, all lineages](figs/latent_grid_v2_all_lineages.png)
+![Raw chunks, all lineages](imgs/raw_grid_all_lineages.png)
+![v2 latents, all lineages](imgs/latent_grid_v2_all_lineages.png)
 
 Expert checkpoints form rosettes around the backbone at every depth; the independently
 initialised runs sit in a separate central cloud. In the raw chunks *and* in the latents. The
@@ -287,12 +287,12 @@ Two ResNet-20s trained from scratch with different seeds are relabellings of one
 averaging them element-wise adds unrelated filters together. It collapses from 69% to
 **1.72%** at λ = 0.5. Latent merging falls with it.
 
-![Independent initialisations, v1 and v2 encoders](figs/merge_indep.png)
-![The same merge split by label half](figs/merge_perhalf.png)
+![Independent initialisations, v1 and v2 encoders](imgs/merge_indep.png)
+![The same merge split by label half](imgs/merge_perhalf.png)
 
 The v2 curve is the one to read: the endpoints are healthy now, so the hole in the middle is
 not the encoder failing to reconstruct. It is the merge itself. The per-half breakdown shows
-what the aggregate hides — each parent's own half decays smoothly toward zero and nothing
+what the aggregate hides, each parent's own half decays smoothly toward zero and nothing
 takes over in between. Nothing is being combined; one model is being destroyed and replaced
 by the other.
 
@@ -321,7 +321,7 @@ Explicit permutation matching does better, and still not well:
 | weight, full (Re-Basin style) | 5.38 | 2.45 |
 | weight, rows | 3.49 | 2.51 |
 | latent matching | 2.38 | 2.30 |
-| latent + Bures OT | 1.28 | — |
+| latent + Bures OT | 1.28 |, |
 
 It lifts the midpoint by 3.66 points when the parents saw the same data, and by 0.60 when they
 did not, where all three methods land within 0.2 of each other. Matching recovers a
@@ -334,12 +334,12 @@ modes, with Hungarian and Sinkhorn agreeing, so this is a result and not a broke
 ## What we conclude
 
 The pieces fit together into one story. Latent merging ties weight averaging inside a basin
-because the encoder reproduces weight-space geometry instead of improving on it — the
+because the encoder reproduces weight-space geometry instead of improving on it, the
 geometry ratio never exceeds 1, and the t-SNE grids are near-identical. It fails outside a
 basin because the obstruction there is a discrete correspondence between hidden units, which
 neither an interpolation in latent space nor an affine transport map can express. And between
 those two facts sits the encoder, which does not generalise across initialisations until it
-has been shown more than one — something no LLM-only evaluation can reveal, because the
+has been shown more than one, something no LLM-only evaluation can reveal, because the
 experiment is not available there.
 
 None of this contradicts the paper. Its merges cross model families, where weight arithmetic
@@ -404,9 +404,9 @@ and you will reproduce the table values here.
 ## Reference
 
 Soro, Zhang, Andreis, Jo, Chong and Hwang, *LS-Merge: Merging Language Models in Latent Space*, ICLR 2026 ([OpenReview](https://openreview.net/forum?id=VSDV0SWwOC)). This repository implements
-the ResNet side of that method — chunking, conditioning, the model zoo, merging, alignment and
-the whole evaluation — none of which ships with the paper, and extends it with the
+the ResNet side of that method, chunking, conditioning, the model zoo, merging, alignment and
+the whole evaluation, none of which ships with the paper, and extends it with the
 across-initialisation experiments the paper does not run.
 
 The written report, with the full derivation of the results above, is in the accompanying
-paper; the figures in `figs/` are the ones it uses.
+paper; the figures in `imgs/` are the ones it uses.

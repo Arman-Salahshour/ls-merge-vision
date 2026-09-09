@@ -3,7 +3,7 @@ import torch
 import hashlib
 import warnings
 import numpy as np
-from constants import *
+from .constants import *
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 warnings.filterwarnings("ignore")

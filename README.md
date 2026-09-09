@@ -14,13 +14,14 @@ paper never visits, and then pushed on the part the paper does not test: what ha
 the parents stop being relatives.
 
 Everything below is a number we produced by running the code in this repository.
+
 ---
 
 ## What is in here
 
 ```
 utils/        every module: the method itself
-notebooks/    the four phases, in order, with their outputs kept
+notebooks/    the five phases, in order, with their outputs kept
 imgs/         the figures used in this README
 ```
 
@@ -37,6 +38,8 @@ and the notebooks put the repository root on the path in their first cell.
 | `utils/transformer_vae.py` | the encoder/decoder pair, depth and stage conditioning, masked β-VAE loss |
 | `utils/reconstruction.py` | decode → load into a ResNet → recalibrate BatchNorm → evaluate |
 | `utils/latent_analysis.py` | t-SNE grids by depth, expert separation, posterior overlap |
+| `utils/permutation.py` | the permutation symmetry group of this network, and the gate that verifies it |
+| `utils/alignment.py` | the Bures map, unit-level matching with Hungarian or Sinkhorn, and the descriptors both run on |
 | `utils/weight_stats.py` | per-layer moments, tail mass, per-filter kurtosis, PCA spectra |
 | `utils/cifar_eval_data.py`, `utils/constants.py` | evaluation loaders and the shared configuration |
 
@@ -46,9 +49,10 @@ and the notebooks put the repository root on the path in their first cell.
 | `notebooks/phase_two_generate_and_analyze_dataset.ipynb` | chunks every checkpoint, then the weight-statistics study |
 | `notebooks/phase_three_train_and_evaluate_weight_vae.ipynb` | trains the autoencoder, chooses β, reconstruction and PCA controls, retrains on three lineages |
 | `notebooks/phase_four_merge_experts_in_latent_space.ipynb` | the merges: pairs, the five-way barycentre, and the independent-initialisation test |
+| `notebooks/phase_five_alignment_and_ot.ipynb` | the permutation group, what the paper's OT does here, and align-then-merge |
 
-The four notebooks run in order. Each one writes artefacts the next one reads, and nothing
-in phase three or four regenerates a checkpoint.
+The five notebooks run in order. Each one writes artefacts the next one reads, and nothing
+after phase three regenerates a checkpoint.
 
 ---
 
@@ -197,12 +201,12 @@ question is what happens when we leave it.
 
 | method | r | own | all | mean rel. err. | tail weight |
 |---|---|---|---|---|---|
-| original |, | 82.50 | 22.66 |, |, |
+| original | n/a | 82.50 | 22.66 | n/a | n/a |
 | VAE, v1 | 1.0 | 82.00 | 25.24 | 0.0809 | 11.6% off |
 | VAE, v2 | 1.0 | 82.35 | 22.73 | 0.0221 | 1.3% off |
-| PCA | 1.6 | 63.53 | 13.35 |, |, |
-| PCA | 2.0 | 48.17 | 9.73 |, |, |
-| PCA | 4.0 | 12.90 | 2.58 |, |, |
+| PCA | 1.6 | 63.53 | 13.35 | n/a | n/a |
+| PCA | 2.0 | 48.17 | 9.73 | n/a | n/a |
+| PCA | 4.0 | 12.90 | 2.58 | n/a | n/a |
 
 A held-out expert gives up **0.15 points** of own-class accuracy at 0.022 relative error. A
 linear baseline at matched compression gives up 19, and by r = 4 there is nothing working
@@ -253,7 +257,7 @@ ratio of 1 means the encoder reproduced the structure the weights already had.
 
 | encoder | latent dim. | β | geometry ratio |
 |---|---|---|---|
-| raw weights (reference) |, |, | 1.000 |
+| raw weights (reference) | n/a | n/a | 1.000 |
 | v1 | 144 | 3e-6 | 0.832 |
 | v2 | 144 | 3e-6 | 0.712 |
 | expanded | 720 | 3e-6 | 0.883 |
@@ -292,7 +296,18 @@ by the other.
 
 ### Alignment does not rescue it
 
-The paper's Bures optimal-transport map cannot see the problem it would need to fix:
+Phase five separates two things that both travel under the name optimal transport. The
+paper's OT is a per-layer Gaussian, or Bures, map: one affine whitening and recolouring
+applied identically to every chunk, which repairs support mismatch between separately
+trained encoders and different architectures. Unit-level OT is a discrete coupling between
+the filters of two models, a cost matrix solved with Hungarian or Sinkhorn, which is what
+OTFusion and Git Re-Basin do. Only the second is about permutations, and the reason is
+structural rather than empirical. Write a layer's latents as `Z`. The Bures map is
+`Z ↦ (Z − μ_s)Aᵀ + μ_t`, right multiplication, acting on coordinates. A permutation is
+`Z ↦ PZ`, left multiplication, acting on the set of units. No choice of `A` reorders rows.
+
+We measured that rather than asserting it, and the paper's map cannot see the problem it
+would need to fix:
 
 | comparison | ‖A−I‖/√d |
 |---|---|
@@ -315,13 +330,26 @@ Explicit permutation matching does better, and still not well:
 | weight, full (Re-Basin style) | 5.38 | 2.45 |
 | weight, rows | 3.49 | 2.51 |
 | latent matching | 2.38 | 2.30 |
-| latent + Bures OT | 1.28 |, |
+| latent + Bures OT | 1.28 | not run |
 
 It lifts the midpoint by 3.66 points when the parents saw the same data, and by 0.60 when they
 did not, where all three methods land within 0.2 of each other. Matching recovers a
 relabelling. It does not reconcile two models that learned different things. (The permutation
 machinery itself was verified separately at 100% planted-permutation recovery in all three
 modes, with Hungarian and Sinkhorn agreeing, so this is a result and not a broken solver.)
+
+Two things had to be right before any of those numbers meant anything. First, the group.
+Option-A shortcuts constrain which permutations are symmetries of this network at all: the
+zero-padded shortcut pins the middle of each residual stream to the stream below, so only
+twelve permutations are free, and a matcher that solves the streams independently produces
+a model that loads without complaint and predicts noise. Every permutation here is built
+inside that group and checked, and a random one has to leave the logits untouched before
+anything is matched. Second, iteration. A filter's descriptor is not invariant to the
+permutation of the layer below it, because the filter is laid out in input-channel order,
+so descriptors must be recomputed against the current alignment and the match re-solved.
+One shot recovers well under half of a planted permutation; iterating recovers all of it.
+A latent code inherits exactly the same non-invariance, which is a small result of its own:
+a permutation-invariant weight encoder would have to address that directly.
 
 ---
 
@@ -372,6 +400,10 @@ matter whether you start Jupyter from the root or from `notebooks/`.
 3. **Phase three** trains the autoencoder, sweeps β, runs the reconstruction and PCA
    controls, and then retrains on three lineages as v2.
 4. **Phase four** does the merges.
+5. **Phase five** builds the permutation group and its symmetry gate, measures how far the
+   paper's Bures map is from the identity between two models of the same architecture, and
+   then aligns before merging, comparing Git Re-Basin against unit-level OT on latent and
+   on raw-weight descriptors.
 
 You can also chunk a single checkpoint from the shell, which is the quickest way to check the
 pipeline end to end:
@@ -387,7 +419,7 @@ Run it from the repository root, as a module: the package uses relative imports,
 
 Expect 19 layers, 1904 chunks, 98.8% coverage, and a round-trip error below 1e-6.
 
-**On the splits.** Experts 0–2 train the autoencoder, expert 3 validates, expert 4 is held out
+**On the splits.** Experts 0 to 2 train the autoencoder, expert 3 validates, expert 4 is held out
 entirely, and the five final (epoch 40) checkpoints are the merge subjects and never appear in
 training. Whole experts are held out rather than scattered checkpoints, because consecutive
 epochs within one trajectory are near-duplicates and splitting inside a trajectory would not

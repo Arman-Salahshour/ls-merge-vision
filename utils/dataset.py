@@ -1,8 +1,8 @@
 import os
 import torch
 import warnings
-import chunking as C
-from constants import *
+from . import chunking as C
+from .constants import *
 import random, numpy as np
 from torch.utils.data import Dataset
 warnings.filterwarnings("ignore")

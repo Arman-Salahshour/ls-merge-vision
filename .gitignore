@@ -1,7 +1,10 @@
 /res_data
 /res_models
+/res_models_independent
+/res_models_independent_train
 /zoo_reference
 /out_backbone
-/__pycache__
+/zoo_independent
+__pycache__/
 backbone_stats.json
 /zoo_chunks

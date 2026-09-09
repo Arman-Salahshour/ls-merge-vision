@@ -1,7 +1,7 @@
 import torch
-import chunking as C
-from resnet20 import resnet20
-from constants import device
+from . import chunking as C
+from .resnet20 import resnet20
+from .constants import device
 import warnings
 warnings.filterwarnings("ignore")
 

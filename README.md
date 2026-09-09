@@ -13,24 +13,7 @@ evaluation. So we built all of it ourselves, for ResNet-20 on CIFAR-100, an arch
 paper never visits, and then pushed on the part the paper does not test: what happens when
 the parents stop being relatives.
 
-Four things came out of it.
-
-1. **Inside a shared basin it works, and works well.** Five specialists scoring about 21%
-   pieces fold into one model at **67.24%**, 98% of the backbone they were forked from,
-   without a gradient step.
-2. **It ties weight averaging rather than beating it.** Averaging reaches 67.21% on the same
-   five models. The latent space matches it; it does not improve on it.
-3. **The encoder does not generalise across initialisations until you show it more than
-   one.** Handed a ResNet-20 from an independent seed, our first encoder lost 26 accuracy
-   points. Twenty checkpoints from two extra lineages cut the out-of-lineage error fourfold
-   and the penalty to 3.6 points.
-4. **Outside a basin, latent merging fails exactly where weight averaging fails**, and
-   alignment does not rescue it. The obstruction is a discrete correspondence between
-   hidden units, and neither an interpolation in latent space nor an affine transport map
-   can express it.
-
 Everything below is a number we produced by running the code in this repository.
-
 ---
 
 ## What is in here

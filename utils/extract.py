@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
 import torch
-from resnet20 import resnet20
-import chunking as C
+from .resnet20 import resnet20
+from . import chunking as C
 import warnings
 warnings.filterwarnings("ignore")
 
